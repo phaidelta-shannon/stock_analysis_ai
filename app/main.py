@@ -1,8 +1,12 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
+from pydantic import BaseModel
 from app.services import fetch_stock_data
-from app.ai_analysis import analyze_stock_trends
+from app.ai_analysis import analyze_stock_trends, ai_process_query
 
 app = FastAPI()
+
+class QueryRequest(BaseModel):
+    query: str
 
 @app.get("/")
 def root():
@@ -11,9 +15,13 @@ def root():
 @app.get("/get_stock_analysis/")
 def get_stock_analysis(
     symbol: str,
-    start_date: str = Query(..., regex="^\d{4}-\d{2}-\d{2}$"),
-    end_date: str = Query(..., regex="^\d{4}-\d{2}-\d{2}$")
+    start_date: str = Query(None, regex="^\d{4}-\d{2}-\d{2}$"),
+    end_date: str = Query(None, regex="^\d{4}-\d{2}-\d{2}$")
 ):
+    """
+    Fetch stock data manually via query parameters and analyze trends.
+    Dates are optional; if missing, the service sets them to the last 2 days.
+    """
     stock_data = fetch_stock_data(symbol, start_date, end_date)
     if "error" in stock_data:
         return stock_data
@@ -21,8 +29,16 @@ def get_stock_analysis(
     ai_insights = analyze_stock_trends(stock_data)
     return {
         "symbol": symbol,
-        "start_date": start_date,
-        "end_date": end_date,
+        "start_date": start_date or "Auto-set by service",
+        "end_date": end_date or "Auto-set by service",
         "stock_data": stock_data,
         "ai_insights": ai_insights
     }
+
+@app.post("/ai_stock_analysis/")
+async def ai_stock_analysis(request: QueryRequest):
+    """
+    AI-driven stock analysis. AI decides whether to fetch stock data or resolve tickers.
+    """
+    result = ai_process_query(request.query)
+    return result
