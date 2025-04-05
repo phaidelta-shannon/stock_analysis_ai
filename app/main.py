@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel
-from app.services import fetch_stock_data
+from app.services import fetch_stock_data, fetch_stock_fundamentals
 from app.ai_analysis import analyze_stock_trends, ai_process_query
 
 app = FastAPI()
@@ -42,3 +42,7 @@ async def ai_stock_analysis(request: QueryRequest):
     """
     result = ai_process_query(request.query)
     return result
+
+@app.get("/get_stock_fundamentals/")
+def get_stock_fundamentals(symbol: str):
+    return fetch_stock_fundamentals(symbol)

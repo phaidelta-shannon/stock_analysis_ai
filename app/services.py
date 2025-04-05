@@ -28,3 +28,25 @@ def fetch_stock_data(symbol: str, start_date: str = None, end_date:str = None) -
     
     except Exception as e:
         raise ValueError(f"Error fetching data for {symbol}: {str(e)}")
+    
+def fetch_stock_fundamentals(symbol: str) -> pd.DataFrame:
+    """
+    Fetch key stock fundamentals such as market cap, P/E ratio, and dividend yield.
+    """
+    try:
+        stock = yf.Ticker(symbol)
+        fundamentals = {
+            "Market Cap": stock.info.get("marketCap"),
+            "P/E Ratio": stock.info.get("trailingPE"),
+            "Dividend Yield": stock.info.get("dividendYield"),
+            "EPS": stock.info.get("trailingEps"),
+            "52 Week High": stock.info.get("fiftyTwoWeekHigh"),
+            "52 Week Low": stock.info.get("fiftyTwoWeekLow")
+        }
+
+        if not fundamentals:
+            return {"error": f"No fundamentals found for {symbol}."}
+        
+        return fundamentals
+    except Exception as e:
+        raise ValueError(f"Error fetching fundamentals for {symbol}: {str(e)}")

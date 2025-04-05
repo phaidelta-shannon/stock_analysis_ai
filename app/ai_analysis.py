@@ -2,7 +2,7 @@ import json
 from openai import OpenAI
 from app.config import OPEN_API_KEY
 from app.utils import resolve_ticker
-from app.services import fetch_stock_data
+from app.services import fetch_stock_data, fetch_stock_fundamentals
 
 client = OpenAI(api_key=OPEN_API_KEY)
 
@@ -49,6 +49,20 @@ tools = [
                 "required": ["symbol"]
             },
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_stock_fundamentals",
+            "description": "Fetch stock fundamentals like Market Cap, P/E Ratio, and Dividend Yield.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "The stock ticker symbol (e.g., 'MSFT')."}
+                },
+                "required": ["symbol"]
+            },
+        }
     }
 ]
 
@@ -87,13 +101,15 @@ def analyze_stock_trends(stock_data):
 
 def ai_process_query(query: str):
     """
-    Uses OpenAI to determine if it needs to resolve a ticker or fetch stock data.
+    Uses OpenAI to determine the required actions: resolving a ticker, fetching stock data,
+    stock fundamentals, or a combination.
     """
 
     system_prompt = (
         "You are a helpful stock analysis assistant. "
         "If a company name is given, resolve it to a ticker. "
-        "If a ticker or company name related to stock analysis is given, fetch stock data and provide an AI-driven analysis."
+        # "If a ticker or company name related to stock analysis is given, fetch stock data and provide an AI-driven analysis."
+        "Resolve company names to tickers, fetch stock data, fundamentals, or analyst recommendations based on user input. "
     )
 
     try:
@@ -113,32 +129,45 @@ def ai_process_query(query: str):
 
             if function_name == "resolve_ticker":
                 company_name = parameters["company_name"]
-                ticker = resolve_ticker(company_name)  # Resolve ticker
-                
-                # Fetch stock data
-                stock_data = fetch_stock_data(ticker)
-
-                # Generate AI insights
+                symbol = resolve_ticker(company_name)  # Resolve ticker
+                start_date = parameters.get("start_date")
+                end_date = parameters.get("end_date")
+                stock_data = fetch_stock_data(symbol, start_date, end_date)
                 ai_insights = analyze_stock_trends(stock_data)
-
+                stock_fundamentals = fetch_stock_fundamentals(symbol)
+                
                 return {
-                    "symbol": ticker,
+                    "symbol": symbol,
                     "stock_data": stock_data,
+                    "stock_fundamentals": stock_fundamentals,
                     "ai_insights": ai_insights
                 }
 
             if function_name == "fetch_stock_data":
-                symbol = parameters["symbol"]
+                company_name = parameters["company_name"]
+                symbol = resolve_ticker(company_name)
                 start_date = parameters.get("start_date")
                 end_date = parameters.get("end_date")
 
                 stock_data = fetch_stock_data(symbol, start_date, end_date)
                 ai_insights = analyze_stock_trends(stock_data)
+                stock_fundamentals = fetch_stock_fundamentals(symbol)
 
                 return {
                     "symbol": symbol,
                     "stock_data": stock_data,
+                    "stock_fundamentals": stock_fundamentals,
                     "ai_insights": ai_insights
+                }
+            
+            if function_name == "fetch_stock_fundamentals":
+                company_name = parameters["company_name"]
+                symbol = resolve_ticker(company_name)
+                stock_fundamentals = fetch_stock_fundamentals(symbol)
+
+                return {
+                    "symbol": symbol,
+                    "stock_fundamentals": stock_fundamentals
                 }
 
         return {"message": "No relevant function was called."}
