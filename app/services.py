@@ -1,38 +1,38 @@
 import yfinance as yf
 from datetime import datetime, timedelta
 import pandas as pd
+from app.logger import logger
 
-def fetch_stock_data(symbol: str, start_date: str = None, end_date:str = None) -> pd.DataFrame:
-    """
-    Fetch historical stock data for a given symbol within a specified date range.
-    If no dates are provided, fetch data for the last 2 days.
-    """
+def fetch_stock_data(symbol: str, start_date: str = None, end_date: str = None) -> pd.DataFrame:
     
     if not start_date or not end_date:
         end_date = datetime.today().strftime('%Y-%m-%d')
         start_date = (datetime.today() - timedelta(days=2)).strftime('%Y-%m-%d')
-
+    
+    logger.info(f"Fetching stock data for {symbol} from {start_date} to {end_date}")
+    
     try:
         stock = yf.Ticker(symbol)
         data = stock.history(start=start_date, end=end_date)
 
         if data.empty:
+            logger.warning(f"No data found for {symbol} between {start_date} and {end_date}")
             return {"error": f"No data found for {symbol} from {start_date} to {end_date}."}
-        
-        # Convert Timestamp index to string
+
         stock_data = {
             str(date): row.to_dict()
-            for date, row in data[['Open','High','Low','Close','Volume']].iterrows()
+            for date, row in data[['Open', 'High', 'Low', 'Close', 'Volume']].iterrows()
         }
+
+        logger.info(f"Fetched {len(stock_data)} records for {symbol}")
         return stock_data
-    
+
     except Exception as e:
+        logger.error(f"Error fetching data for {symbol}: {e}")
         raise ValueError(f"Error fetching data for {symbol}: {str(e)}")
-    
+
 def fetch_stock_fundamentals(symbol: str) -> pd.DataFrame:
-    """
-    Fetch key stock fundamentals such as market cap, P/E ratio, and dividend yield.
-    """
+    logger.info(f"Fetching fundamentals for {symbol}")
     try:
         stock = yf.Ticker(symbol)
         fundamentals = {
@@ -45,8 +45,12 @@ def fetch_stock_fundamentals(symbol: str) -> pd.DataFrame:
         }
 
         if not fundamentals:
+            logger.warning(f"No fundamentals found for {symbol}")
             return {"error": f"No fundamentals found for {symbol}."}
-        
+
+        logger.info(f"Fetched fundamentals for {symbol}")
         return fundamentals
+
     except Exception as e:
+        logger.error(f"Error fetching fundamentals for {symbol}: {e}")
         raise ValueError(f"Error fetching fundamentals for {symbol}: {str(e)}")

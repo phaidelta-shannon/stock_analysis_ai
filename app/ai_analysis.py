@@ -3,6 +3,7 @@ from openai import OpenAI
 from app.config import OPEN_API_KEY
 from app.utils import resolve_ticker
 from app.services import fetch_stock_data, fetch_stock_fundamentals
+from app.logger import logger
 
 client = OpenAI(api_key=OPEN_API_KEY)
 
@@ -68,9 +69,7 @@ tools = [
 
 
 def analyze_stock_trends(stock_data):
-    """
-    Uses OpenAI API to generate insights on stock trends based on historical data.
-    """
+    logger.info("Generating AI stock trend analysis")
     stock_json = json.dumps(stock_data, indent=2)
 
     system_prompt = "You are a helpful stock analysis assistant."
@@ -95,21 +94,18 @@ def analyze_stock_trends(stock_data):
                 {"role": "user", "content": prompt}
             ]
         )
+        logger.info("AI analysis complete")
         return completion.choices[0].message.content
     except Exception as e:
+        logger.error(f"Error generating insights: {e}")
         return f"Error generating insights: {str(e)}"
 
 def ai_process_query(query: str):
-    """
-    Uses OpenAI to determine the required actions: resolving a ticker, fetching stock data,
-    stock fundamentals, or a combination.
-    """
+    logger.info(f"AI processing query: {query}")
 
     system_prompt = (
         "You are a helpful stock analysis assistant. "
-        "If a company name is given, resolve it to a ticker. "
-        # "If a ticker or company name related to stock analysis is given, fetch stock data and provide an AI-driven analysis."
-        "Resolve company names to tickers, fetch stock data, fundamentals, or analyst recommendations based on user input. "
+        "Resolve company names to tickers, fetch stock data, fundamentals, or analyst recommendations based on user input."
     )
 
     try:
@@ -126,16 +122,14 @@ def ai_process_query(query: str):
         for tool_call in response.choices[0].message.tool_calls:
             function_name = tool_call.function.name
             parameters = json.loads(tool_call.function.arguments)
+            logger.info(f"AI chose tool: {function_name} with params: {parameters}")
 
             if function_name == "resolve_ticker":
                 company_name = parameters["company_name"]
-                symbol = resolve_ticker(company_name)  # Resolve ticker
-                start_date = parameters.get("start_date")
-                end_date = parameters.get("end_date")
-                stock_data = fetch_stock_data(symbol, start_date, end_date)
+                symbol = resolve_ticker(company_name)
+                stock_data = fetch_stock_data(symbol)
                 ai_insights = analyze_stock_trends(stock_data)
                 stock_fundamentals = fetch_stock_fundamentals(symbol)
-                
                 return {
                     "symbol": symbol,
                     "stock_data": stock_data,
@@ -148,29 +142,28 @@ def ai_process_query(query: str):
                 symbol = resolve_ticker(company_name)
                 start_date = parameters.get("start_date")
                 end_date = parameters.get("end_date")
-
                 stock_data = fetch_stock_data(symbol, start_date, end_date)
                 ai_insights = analyze_stock_trends(stock_data)
                 stock_fundamentals = fetch_stock_fundamentals(symbol)
-
                 return {
                     "symbol": symbol,
                     "stock_data": stock_data,
                     "stock_fundamentals": stock_fundamentals,
                     "ai_insights": ai_insights
                 }
-            
+
             if function_name == "fetch_stock_fundamentals":
                 company_name = parameters["company_name"]
                 symbol = resolve_ticker(company_name)
                 stock_fundamentals = fetch_stock_fundamentals(symbol)
-
                 return {
                     "symbol": symbol,
                     "stock_fundamentals": stock_fundamentals
                 }
 
+        logger.warning("AI did not call any relevant function")
         return {"message": "No relevant function was called."}
 
     except Exception as e:
+        logger.error(f"AI process failed: {e}")
         return {"error": str(e)}
