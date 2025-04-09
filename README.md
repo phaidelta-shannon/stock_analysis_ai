@@ -11,8 +11,7 @@ stock_analysis_ai/
 │   │── main.py                # FastAPI application entry point
 │   │── services.py            # Fetching stock data using yFinance
 │   │── ai_analysis.py         # AI-powered analysis using OpenAI API
-│   │── config.py              # Configuration settings for API 
-keys
+│   │── config.py              # Configuration settings for API keys
 │   ├── logger.py              # Logger setup
 │   ├── schemas.py             # Pydantic model setup
 │   │__ utils.py               # Resolving ticker symbol from user query
@@ -88,6 +87,22 @@ Body:
 
 ## Notes
 
-- If the query contains a company name, the AI will resolve it to the corresponding ticker symbol and fetch the stock data for analysis.
+- If the query contains a **company name**, **stock ticker**, or **acronym** (e.g., *Microsoft*, *MSFT*, *FAANG*, *GAFAM*), the AI will resolve it to one or more corresponding ticker symbols using `yahooquery`.
 
-- If the query contains an existing stock ticker (e.g., MSFT), the AI will directly analyze the stock trends.
+- Acronyms like **FAANG** (Facebook, Apple, Amazon, Netflix, Google) are supported and automatically expanded into multiple tickers.
+
+- If the query contains an **existing stock ticker**, the AI uses it directly without resolving.
+
+- The AI autonomously decides which tools to invoke based on the user query, including:
+  - `resolve_ticker`
+  - `fetch_stock_data`
+  - `fetch_stock_fundamentals`
+  - `fetch_analyst_recommendations`
+
+- For **stock data**, you can optionally specify `start_date` and `end_date`. If not provided, it defaults to a recent short range (1–2 days).
+
+- **Stock fundamentals** and **analyst recommendations** are independent of date ranges—they reflect the latest available snapshot.
+
+- The system supports **multiple tickers** in one query (e.g., *"Get me the fundamentals for Microsoft and Tesla"*) and returns results per symbol.
+
+- All AI-generated summaries and insights are generated via the OpenAI API using real-time data retrieved from `yFinance`.
