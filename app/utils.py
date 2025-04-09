@@ -1,10 +1,25 @@
+#utils.py
 from yahooquery import search
 from app.logger import logger
+from typing import Union, List
 
-def resolve_ticker(company_name: str) -> str:
+ACRONYM_GROUPS = {
+    "FAANG": ["META", "AAPL", "AMZN", "NFLX", "GOOG"],
+    "FAAMG": ["FB", "AAPL", "AMZN", "MSFT", "GOOG"],
+    "MAMAA": ["META", "AAPL", "MSFT", "AMZN", "GOOG"],
+    "ANTMAMA": ["AAPL", "NVDA", "TSLA", "META", "AMZN", "MSFT", "GOOG"],
+    "GAFM": ["GOOG", "AMZN", "FB", "MSFT"]
+}
+
+def resolve_ticker(company_name: str) -> Union[str, List[str]]:
     """
-    Resolve a company name to its stock ticker symbol using yahooquery.
+    Resolve a company name or acronym group to its stock ticker symbol(s) using yahooquery.
     """
+    company_upper = company_name.strip().upper()
+    if company_upper in ACRONYM_GROUPS:
+        logger.info(f"Resolved acronym group {company_upper} to tickers: {ACRONYM_GROUPS[company_upper]}")
+        return ACRONYM_GROUPS[company_upper]
+
     logger.info(f"Resolving ticker for: {company_name}")
     try:
         results = search(company_name)

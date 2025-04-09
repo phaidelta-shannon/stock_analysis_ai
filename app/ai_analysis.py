@@ -120,7 +120,12 @@ async def ai_process_query(query: str):
         {"role": "user", "content": query}
     ]
 
-    tool_outputs = {}
+    tool_outputs = {
+        "symbols": [],
+        "stock_data": {},
+        "stock_fundamentals": {},
+        "recommendations": {},
+    }
 
     try:
         while True:
@@ -138,7 +143,7 @@ async def ai_process_query(query: str):
                 final_content = response_message.content
                 logger.info("AI final response constructed")
                 tool_outputs["ai_summary"] = final_content
-                return tool_outputs
+                return {k: v for k, v in tool_outputs.items() if v}  # Clean up empty values
 
             for tool_call in tool_calls:
                 function_name = tool_call.function.name
@@ -147,7 +152,8 @@ async def ai_process_query(query: str):
 
                 if function_name == "resolve_ticker":
                     symbol = resolve_ticker(parameters["company_name"])
-                    tool_outputs["symbol"] = symbol
+                    if symbol not in tool_outputs["symbols"]:
+                        tool_outputs["symbols"].append(symbol)
                     messages.append({
                         "role": "function",
                         "name": function_name,
@@ -160,35 +166,48 @@ async def ai_process_query(query: str):
                     end_date = parameters.get("end_date")
                     stock_data = fetch_stock_data(symbol, start_date, end_date)
                     ai_insights = analyze_stock_trends(stock_data)
-                    tool_outputs.update({
-                        "symbol": symbol,
-                        "stock_data": stock_data,
-                        "ai_insights": ai_insights
-                    })
+                    tool_outputs["stock_data"][symbol] = stock_data
+                    tool_outputs.setdefault("ai_insights", {})[symbol] = ai_insights
+                    if symbol not in tool_outputs["symbols"]:
+                        tool_outputs["symbols"].append(symbol)
                     messages.append({
                         "role": "function",
                         "name": function_name,
-                        "content": json.dumps({"symbol": symbol, "stock_data": stock_data, "ai_insights": ai_insights})
+                        "content": json.dumps({
+                            "symbol": symbol,
+                            "stock_data": stock_data,
+                            "ai_insights": ai_insights
+                        })
                     })
 
                 elif function_name == "fetch_stock_fundamentals":
                     symbol = parameters["symbol"]
                     fundamentals = fetch_stock_fundamentals(symbol)
-                    tool_outputs.update({"symbol": symbol, "stock_fundamentals": fundamentals})
+                    tool_outputs["stock_fundamentals"][symbol] = fundamentals
+                    if symbol not in tool_outputs["symbols"]:
+                        tool_outputs["symbols"].append(symbol)
                     messages.append({
                         "role": "function",
                         "name": function_name,
-                        "content": json.dumps({"symbol": symbol, "stock_fundamentals": fundamentals})
+                        "content": json.dumps({
+                            "symbol": symbol,
+                            "stock_fundamentals": fundamentals
+                        })
                     })
 
                 elif function_name == "fetch_analyst_recommendations":
                     symbol = parameters["symbol"]
                     recommendations = fetch_analyst_recommendations(symbol)
-                    tool_outputs.update({"symbol": symbol, "recommendations": recommendations})
+                    tool_outputs["recommendations"][symbol] = recommendations
+                    if symbol not in tool_outputs["symbols"]:
+                        tool_outputs["symbols"].append(symbol)
                     messages.append({
                         "role": "function",
                         "name": function_name,
-                        "content": json.dumps({"symbol": symbol, "recommendations": recommendations})
+                        "content": json.dumps({
+                            "symbol": symbol,
+                            "recommendations": recommendations
+                        })
                     })
 
     except Exception as e:
