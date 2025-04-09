@@ -2,7 +2,7 @@
 
 ### Problem Statement: API-Driven AI Stock Analysis Agent
 
-*Develop a ```FastAPI-based backend``` that serves as an autonomous AI agent for stock analysis. The agent will retrieve historical stock data using ```yFinance```, then leverage the ```OpenAI API``` to analyze the data and generate insights—such as trend analyses, anomaly detections, and predictive summaries. These insights will be exposed through ```dedicated API endpoints```, enabling seamless integration and programmatic access to the AI-generated stock analysis.*
+*Develop a ```FastAPI-based backend``` that serves as an autonomous AI agent for stock analysis. The agent will retrieve historical stock data using ```yFinance``` and resolve company names or acronyms to ticker symbols using ```yahooquery```. It will then leverage the ```OpenAI API``` to analyze the data and generate insights—such as trend analyses, anomaly detections, and predictive summaries. These insights will be exposed through ```dedicated API endpoints```, enabling seamless integration and programmatic access to the AI-generated stock analysis.*
 
 ## Project Structure
 ```bash
@@ -11,7 +11,10 @@ stock_analysis_ai/
 │   │── main.py                # FastAPI application entry point
 │   │── services.py            # Fetching stock data using yFinance
 │   │── ai_analysis.py         # AI-powered analysis using OpenAI API
-│   │── config.py              # Configuration settings for API keys
+│   │── config.py              # Configuration settings for API 
+keys
+│   ├── logger.py              # Logger setup
+│   ├── schemas.py             # Pydantic model setup
 │   │__ utils.py               # Resolving ticker symbol from user query
 │── venv/                      # Virtual environment
 │── requirements.txt           # Dependencies for installation
