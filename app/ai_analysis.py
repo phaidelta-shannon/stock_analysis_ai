@@ -1,13 +1,14 @@
+# ai_analysis.py
 import json
 from openai import OpenAI
 from app.config import OPEN_API_KEY
 from app.utils import resolve_ticker
-from app.services import fetch_stock_data, fetch_stock_fundamentals
+from app.services import fetch_stock_data, fetch_stock_fundamentals, fetch_analyst_recommendations
 from app.logger import logger
 
 client = OpenAI(api_key=OPEN_API_KEY)
 
-# Define OpenAI tools
+# Tools for OpenAI function calling
 tools = [
     {
         "type": "function",
@@ -34,18 +35,9 @@ tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "symbol": {
-                        "type": "string",
-                        "description": "The stock ticker symbol (e.g., 'MSFT')."
-                    },
-                    "start_date": {
-                        "type": "string",
-                        "description": "Start date for the stock data (YYYY-MM-DD)."
-                    },
-                    "end_date": {
-                        "type": "string",
-                        "description": "End date for the stock data (YYYY-MM-DD)."
-                    }
+                    "symbol": {"type": "string"},
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"}
                 },
                 "required": ["symbol"]
             },
@@ -59,14 +51,27 @@ tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "symbol": {"type": "string", "description": "The stock ticker symbol (e.g., 'MSFT')."}
+                    "symbol": {"type": "string"}
+                },
+                "required": ["symbol"]
+            },
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_analyst_recommendations",
+            "description": "Fetch the latest analyst recommendations for a given ticker symbol.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string"}
                 },
                 "required": ["symbol"]
             },
         }
     }
 ]
-
 
 def analyze_stock_trends(stock_data):
     logger.info("Generating AI stock trend analysis")
@@ -100,69 +105,91 @@ def analyze_stock_trends(stock_data):
         logger.error(f"Error generating insights: {e}")
         return f"Error generating insights: {str(e)}"
 
-def ai_process_query(query: str):
+
+async def ai_process_query(query: str):
     logger.info(f"AI processing query: {query}")
 
     system_prompt = (
         "You are a helpful stock analysis assistant. "
-        "Resolve company names to tickers, fetch stock data, fundamentals, or analyst recommendations based on user input."
+        "Resolve company names to tickers, fetch stock data, fundamentals, or analyst recommendations based on user input. "
+        "Call only the necessary tool based on the user's request."
     )
 
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": query}
+    ]
+
+    tool_outputs = {}
+
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": query}
-            ],
-            tools=tools,
-            tool_choice="auto",
-        )
+        while True:
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                tools=tools,
+                tool_choice="auto"
+            )
 
-        for tool_call in response.choices[0].message.tool_calls:
-            function_name = tool_call.function.name
-            parameters = json.loads(tool_call.function.arguments)
-            logger.info(f"AI chose tool: {function_name} with params: {parameters}")
+            response_message = response.choices[0].message
+            tool_calls = response_message.tool_calls
 
-            if function_name == "resolve_ticker":
-                company_name = parameters["company_name"]
-                symbol = resolve_ticker(company_name)
-                stock_data = fetch_stock_data(symbol)
-                ai_insights = analyze_stock_trends(stock_data)
-                stock_fundamentals = fetch_stock_fundamentals(symbol)
-                return {
-                    "symbol": symbol,
-                    "stock_data": stock_data,
-                    "stock_fundamentals": stock_fundamentals,
-                    "ai_insights": ai_insights
-                }
+            if not tool_calls:
+                final_content = response_message.content
+                logger.info("AI final response constructed")
+                tool_outputs["ai_summary"] = final_content
+                return tool_outputs
 
-            if function_name == "fetch_stock_data":
-                company_name = parameters["company_name"]
-                symbol = resolve_ticker(company_name)
-                start_date = parameters.get("start_date")
-                end_date = parameters.get("end_date")
-                stock_data = fetch_stock_data(symbol, start_date, end_date)
-                ai_insights = analyze_stock_trends(stock_data)
-                stock_fundamentals = fetch_stock_fundamentals(symbol)
-                return {
-                    "symbol": symbol,
-                    "stock_data": stock_data,
-                    "stock_fundamentals": stock_fundamentals,
-                    "ai_insights": ai_insights
-                }
+            for tool_call in tool_calls:
+                function_name = tool_call.function.name
+                parameters = json.loads(tool_call.function.arguments)
+                logger.info(f"AI chose tool: {function_name} with params: {parameters}")
 
-            if function_name == "fetch_stock_fundamentals":
-                company_name = parameters["company_name"]
-                symbol = resolve_ticker(company_name)
-                stock_fundamentals = fetch_stock_fundamentals(symbol)
-                return {
-                    "symbol": symbol,
-                    "stock_fundamentals": stock_fundamentals
-                }
+                if function_name == "resolve_ticker":
+                    symbol = resolve_ticker(parameters["company_name"])
+                    tool_outputs["symbol"] = symbol
+                    messages.append({
+                        "role": "function",
+                        "name": function_name,
+                        "content": json.dumps({"symbol": symbol})
+                    })
 
-        logger.warning("AI did not call any relevant function")
-        return {"message": "No relevant function was called."}
+                elif function_name == "fetch_stock_data":
+                    symbol = parameters["symbol"]
+                    start_date = parameters.get("start_date")
+                    end_date = parameters.get("end_date")
+                    stock_data = fetch_stock_data(symbol, start_date, end_date)
+                    ai_insights = analyze_stock_trends(stock_data)
+                    tool_outputs.update({
+                        "symbol": symbol,
+                        "stock_data": stock_data,
+                        "ai_insights": ai_insights
+                    })
+                    messages.append({
+                        "role": "function",
+                        "name": function_name,
+                        "content": json.dumps({"symbol": symbol, "stock_data": stock_data, "ai_insights": ai_insights})
+                    })
+
+                elif function_name == "fetch_stock_fundamentals":
+                    symbol = parameters["symbol"]
+                    fundamentals = fetch_stock_fundamentals(symbol)
+                    tool_outputs.update({"symbol": symbol, "stock_fundamentals": fundamentals})
+                    messages.append({
+                        "role": "function",
+                        "name": function_name,
+                        "content": json.dumps({"symbol": symbol, "stock_fundamentals": fundamentals})
+                    })
+
+                elif function_name == "fetch_analyst_recommendations":
+                    symbol = parameters["symbol"]
+                    recommendations = fetch_analyst_recommendations(symbol)
+                    tool_outputs.update({"symbol": symbol, "recommendations": recommendations})
+                    messages.append({
+                        "role": "function",
+                        "name": function_name,
+                        "content": json.dumps({"symbol": symbol, "recommendations": recommendations})
+                    })
 
     except Exception as e:
         logger.error(f"AI process failed: {e}")
