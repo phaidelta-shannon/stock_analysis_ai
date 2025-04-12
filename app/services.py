@@ -71,3 +71,37 @@ def fetch_analyst_recommendations(symbol: str) -> dict:
     except Exception as e:
         logger.error(f"Error fetching analyst recommendations for {symbol}: {e}")
         raise ValueError(f"Error fetching analyst recommendations for {symbol}: {str(e)}")
+
+def fetch_stock_news(symbol: str, days_back: int = 7) -> dict:
+    """Fetch recent news articles for a stock and return them with basic metadata"""
+    logger.info(f"Fetching news for {symbol} from last {days_back} days")
+    try:
+        stock = yf.Ticker(symbol)
+        news = stock.news
+        
+        if not news:
+            logger.warning(f"No news found for {symbol}")
+            return {"symbol": symbol, "news": []}
+        
+        # Filter news by date if possible
+        recent_news = []
+        cutoff_date = datetime.now() - timedelta(days=days_back)
+        
+        for item in news:
+            try:
+                if 'providerPublishTime' in item:
+                    pub_date = datetime.fromtimestamp(item['providerPublishTime'])
+                    if pub_date >= cutoff_date:
+                        recent_news.append(item)
+                else:
+                    recent_news.append(item)  # Include if we can't check date
+            except Exception as e:
+                logger.warning(f"Error processing news item: {e}")
+                recent_news.append(item)  # Include anyway
+        
+        logger.info(f"Fetched {len(recent_news)} news items for {symbol}")
+        return {"symbol": symbol, "news": recent_news}
+    
+    except Exception as e:
+        logger.error(f"Error fetching news for {symbol}: {e}")
+        raise ValueError(f"Error fetching news for {symbol}: {str(e)}")

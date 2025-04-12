@@ -1,9 +1,10 @@
 # ai_analysis.py
 import json
+from typing import Dict, Any
 from openai import OpenAI
 from app.config import OPEN_API_KEY
 from app.utils import resolve_ticker
-from app.services import fetch_stock_data, fetch_stock_fundamentals, fetch_analyst_recommendations
+from app.services import fetch_stock_data, fetch_stock_fundamentals, fetch_analyst_recommendations, fetch_stock_news
 from app.logger import logger
 
 client = OpenAI(api_key=OPEN_API_KEY)
@@ -70,6 +71,21 @@ tools = [
                 "required": ["symbol"]
             },
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_stock_news",
+            "description": "Fetch recent news articles for a given stock ticker symbol.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string"},
+                    "days_back": {"type": "integer", "description": "Number of days to look back for news"}
+                },
+                "required": ["symbol"]
+            },
+        }
     }
 ]
 
@@ -106,12 +122,33 @@ def analyze_stock_trends(stock_data):
         return f"Error generating insights: {str(e)}"
 
 
+def analyze_sentiment(news_data: Dict) -> Dict[str, Any]:
+    """NEW: Analyze news sentiment"""
+    logger.info(f"Analyzing sentiment for {news_data['symbol']}")
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{
+                "role": "system",
+                "content": "Analyze news sentiment. Return JSON with: score (-1 to 1), summary, top_positive, top_negative"
+            }, {
+                "role": "user",
+                "content": f"News for {news_data['symbol']}:\n{json.dumps(news_data['news'][:5], indent=2)}"
+            }],
+            response_format={"type": "json_object"}
+        )
+        return json.loads(completion.choices[0].message.content)
+    except Exception as e:
+        logger.error(f"Sentiment analysis failed: {e}")
+        return {"error": str(e)}
+    
+
 async def ai_process_query(query: str):
     logger.info(f"AI processing query: {query}")
 
     system_prompt = (
         "You are a helpful stock analysis assistant. "
-        "Resolve company names to tickers, fetch stock data, fundamentals, or analyst recommendations based on user input. "
+        "Resolve company names to tickers, fetch stock data, fundamentals, sentiment analysis or analyst recommendations based on user input. "
         "Call only the necessary tool based on the user's request."
     )
 
@@ -125,6 +162,7 @@ async def ai_process_query(query: str):
         "stock_data": {},
         "stock_fundamentals": {},
         "recommendations": {},
+         "news_sentiment": {},
     }
 
     try:
@@ -207,6 +245,27 @@ async def ai_process_query(query: str):
                         "content": json.dumps({
                             "symbol": symbol,
                             "recommendations": recommendations
+                        })
+                    })
+
+                elif function_name == "fetch_stock_news":
+                    symbol = parameters["symbol"]
+                    days_back = parameters.get("days_back", 7)
+                    news = fetch_stock_news(symbol, days_back)
+                    sentiment = analyze_sentiment(news)
+                    tool_outputs["news_sentiment"][symbol] = {
+                        "articles": news["news"][:3],  # Top 3 articles
+                        "analysis": sentiment
+                    }
+                    if symbol not in tool_outputs["symbols"]:
+                        tool_outputs["symbols"].append(symbol)
+                    messages.append({
+                        "role": "function",
+                        "name": function_name,
+                        "content": json.dumps({
+                            "symbol": symbol,
+                            "news": news,
+                            "sentiment_analysis": sentiment
                         })
                     })
 

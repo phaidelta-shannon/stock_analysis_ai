@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Query
-from app.schemas import QueryRequest, StockDateRange, StockDataResponse, FundamentalsResponse
-from app.services import fetch_stock_data, fetch_stock_fundamentals
-from app.ai_analysis import analyze_stock_trends, ai_process_query
+from app.schemas import QueryRequest, StockDateRange, StockDataResponse, FundamentalsResponse, StockNewsResponse
+from app.services import fetch_stock_data, fetch_stock_fundamentals, fetch_stock_news
+from app.ai_analysis import analyze_stock_trends, ai_process_query, analyze_sentiment
 from app.logger import logger
 
 app = FastAPI()
@@ -38,3 +38,14 @@ def get_stock_fundamentals(symbol: str):
         "symbol": symbol,
         "stock_fundamentals": fetch_stock_fundamentals(symbol)
     }
+
+# @app.get("/get_stock_sentiment/", response_model=StockNewsResponse)
+# async def get_stock_sentiment(symbol: str, days_back: int = 7):
+#     logger.info(f"GET /get_stock_sentiment/ - symbol: {symbol}, days_back: {days_back}")
+#     news_data = fetch_stock_news(symbol, days_back)
+#     sentiment = analyze_sentiment(news_data)
+#     return {
+#         "symbol": symbol,
+#         "news": news_data["news"],
+#         "sentiment_analysis": sentiment
+#     }

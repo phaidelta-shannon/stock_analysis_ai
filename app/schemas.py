@@ -26,3 +26,8 @@ class AnalystRecommendationsResponse(BaseModel):
 
 class AIStockQuery(BaseModel):
     query: str
+
+class StockNewsResponse(BaseModel):
+    symbol: str
+    news: List[Dict[str, Any]]
+    sentiment_analysis: Optional[Dict[str, float]] = None
