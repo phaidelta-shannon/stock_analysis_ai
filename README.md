@@ -98,6 +98,7 @@ Body:
   - `fetch_stock_data`
   - `fetch_stock_fundamentals`
   - `fetch_analyst_recommendations`
+  - `fetch_stock_news`
 
 - For **stock data**, you can optionally specify `start_date` and `end_date`. If not provided, it defaults to a recent short range (1–2 days).
 
@@ -105,4 +106,31 @@ Body:
 
 - The system supports **multiple tickers** in one query (e.g., *"Get me the fundamentals for Microsoft and Tesla"*) and returns results per symbol.
 
-- All AI-generated summaries and insights are generated via the OpenAI API using real-time data retrieved from `yFinance`.
+- All AI-generated summaries and insights (*including news sentiment analysis - analyzes last 7 days of news sentiment*) are generated via the OpenAI API using real-time data retrieved from `yFinance`.
+
+## 🔀 Try It Out 🔍
+
+`Basic stock analysis`
+> *Show me the recent trend for Apple stock*
+
+`Fundamentals check`
+> *What's the P/E ratio and market cap of Nvidia?*
+
+`Multi-stock comparison`
+> *Compare Tesla and Ford fundamentals*
+
+`Analyst opinions`
+> *What are analysts saying about Amazon stock?*
+
+`Sentiment analysis`
+> *How positive is the news about Microsoft?*
+
+> *Show me bearish articles for Meta"*
+
+`Mixed request`
+> *Get price trends and news sentiment for AMD*
+
+`Acronym expansion`
+> *Analyze all FAANG stocks*
+
+> *Get me GAFM fundamentals*
