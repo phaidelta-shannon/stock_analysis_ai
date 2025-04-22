@@ -110,10 +110,8 @@ def analyze_stock_trends(stock_data):
     try:
         completion = client.chat.completions.create(
             model="gpt-4o",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ]
+            messages=[{"role": "system", "content": system_prompt},
+                      {"role": "user", "content": prompt}]
         )
         logger.info("AI analysis complete")
         return completion.choices[0].message.content
@@ -123,14 +121,21 @@ def analyze_stock_trends(stock_data):
 
 
 def analyze_sentiment(news_data: Dict) -> Dict[str, Any]:
-    """NEW: Analyze news sentiment"""
-    logger.info(f"Analyzing sentiment for {news_data['symbol']}")
+    """Condensed sentiment analysis based on recent news."""
+    logger.info(f"Analyzing simplified sentiment for {news_data['symbol']}")
     try:
         completion = client.chat.completions.create(
             model="gpt-4o",
             messages=[{
                 "role": "system",
-                "content": "Analyze news sentiment. Return JSON with: score (-1 to 1), summary, top_positive, top_negative"
+                "content": (
+                    "You're a financial news sentiment analyzer. Based only on the news items provided, "
+                    "respond in JSON format with:\n"
+                    "- sentiment: 'bullish', 'bearish', or 'neutral'\n"
+                    "- price_movement: 'up', 'down', or 'neutral'\n"
+                    "- valuation: 'overvalued', 'undervalued', or 'fairly valued'\n\n"
+                    "Do NOT include explanations. Only output keys and values in JSON."
+                )
             }, {
                 "role": "user",
                 "content": f"News for {news_data['symbol']}:\n{json.dumps(news_data['news'][:5], indent=2)}"
@@ -138,10 +143,11 @@ def analyze_sentiment(news_data: Dict) -> Dict[str, Any]:
             response_format={"type": "json_object"}
         )
         return json.loads(completion.choices[0].message.content)
+
     except Exception as e:
-        logger.error(f"Sentiment analysis failed: {e}")
+        logger.error(f"Simplified sentiment analysis failed: {e}")
         return {"error": str(e)}
-    
+
 
 async def ai_process_query(query: str):
     logger.info(f"AI processing query: {query}")
@@ -162,7 +168,7 @@ async def ai_process_query(query: str):
         "stock_data": {},
         "stock_fundamentals": {},
         "recommendations": {},
-         "news_sentiment": {},
+        "news_sentiment": {},
     }
 
     try:
@@ -251,21 +257,19 @@ async def ai_process_query(query: str):
                 elif function_name == "fetch_stock_news":
                     symbol = parameters["symbol"]
                     days_back = parameters.get("days_back", 7)
+                    # We fetch news but don't keep the articles
                     news = fetch_stock_news(symbol, days_back)
                     sentiment = analyze_sentiment(news)
-                    tool_outputs["news_sentiment"][symbol] = {
-                        "articles": news["news"][:3],  # Top 3 articles
-                        "analysis": sentiment
-                    }
+                    tool_outputs["news_sentiment"][symbol] = {"analysis": sentiment}
                     if symbol not in tool_outputs["symbols"]:
                         tool_outputs["symbols"].append(symbol)
+
                     messages.append({
                         "role": "function",
                         "name": function_name,
                         "content": json.dumps({
                             "symbol": symbol,
-                            "news": news,
-                            "sentiment_analysis": sentiment
+                            "analysis": sentiment  # only send the condensed summary
                         })
                     })
 
